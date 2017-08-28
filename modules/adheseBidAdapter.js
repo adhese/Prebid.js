@@ -3,6 +3,8 @@ var bidmanager = require('src/bidmanager.js');
 var utils = require('src/utils.js');
 var adaptermanager = require('src/adaptermanager');
 
+const PRICE_UNDEFINED = 0;
+
 var AdheseAdapter = function AdheseAdapter() {
   
   function addEmptyBidResponse(uid) {
@@ -55,22 +57,24 @@ var AdheseAdapter = function AdheseAdapter() {
       method: 'get',
       json: true
     }).done(function(result) {
-        var ads = result.reduce(function(map, ad) {
+        let ads = result.reduce(function(map, ad) {
           map[ad.adType] = ad;
           return map;
         }, {});        
 
         for (var j = 0; j<adArray.length; j++) {
-          var ad = ads[adArray[j].uid];
-          if (ad && ad.extension && ad.extension.prebid && ad.extension.prebid.cpm) {
-              var cpm = ad.extension.prebid.cpm;
-              if (cpm.currency == 'USD') {
-                addBidResponse(ad, Number(cpm.amount));
-              } else {
-                addEmptyBidResponse(adArray[j].uid);
-              }
-          } else {
+          let ad = ads[adArray[j].uid];
+          if (!ad) {
               addEmptyBidResponse(adArray[j].uid);
+          } else {
+              var price = PRICE_UNDEFINED; 
+              if (ad.extension && ad.extension.prebid && ad.extension.prebid.cpm) {
+                  let cpm = ad.extension.prebid.cpm;
+                  if (cpm.currency == 'USD') {
+                      price = Number(cpm.amount);
+                  }
+              }
+              addBidResponse(ad, price);
           }
         }
     });
