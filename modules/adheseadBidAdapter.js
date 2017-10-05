@@ -15,6 +15,7 @@ var AdheseAdapter = function AdheseAdapter() {
     bidObject.width = 0;
     bidObject.height = 0;
     bidObject.impressionCounter = "";
+    bidObject.ttl = 360;
     bidmanager.addBidResponse(uid, bidObject);
   }
 
@@ -22,10 +23,13 @@ var AdheseAdapter = function AdheseAdapter() {
     var bidObject = bidfactory.createBid(1, utils.getBidRequest(bid.adType));
     bidObject.bidderCode = 'adhese';
     bidObject.cpm = usdCpm;
-    bidObject.ad = bid.body;
+    if (bid.body!="") bidObject.ad = bid.body;
+    else bidObject.ad = bid.tag;
     bidObject.width = bid.width;
     bidObject.height = bid.height;
     bidObject.impressionCounter = bid.impressionCounter;
+    bidObject.ttl = 360;
+    bidObject.creativeId = bid.id;
     bidmanager.addBidResponse(bid.adType, bidObject);
   }
 
