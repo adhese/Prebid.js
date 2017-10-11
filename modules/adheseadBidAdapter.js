@@ -30,8 +30,8 @@ var AdheseAdapter = function AdheseAdapter() {
     bidObject.impressionCounter = bid.impressionCounter;
     bidObject.ttl = 360;
     bidObject.creativeId = bid.id;
-    adhese.registerResponse(bid.adType, bid);
-    bidmanager.addBidResponse(bid.adType, bidObject);
+    adhese.registerResponse(bid.uid, bid);
+    bidmanager.addBidResponse(bid.uid, bidObject);
   }
 
   /**
