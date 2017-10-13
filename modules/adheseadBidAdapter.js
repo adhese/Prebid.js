@@ -67,7 +67,8 @@ var AdheseAdapter = function AdheseAdapter() {
           if (!ad) {
               addEmptyBidResponse(adArray[j].uid);
           } else {
-              var price = PRICE_UNDEFINED; 
+              var price = PRICE_UNDEFINED;
+              ad.uid = adArray[j].uid;
               if (ad.extension && ad.extension.prebid && ad.extension.prebid.cpm) {
                   let cpm = ad.extension.prebid.cpm;
                   if (cpm.currency == 'USD') {
