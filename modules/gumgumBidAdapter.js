@@ -149,7 +149,7 @@ function isBidRequestValid (bid) {
     case !!(params.ICV): break;
     case !!(params.video): break;
     case !!(params.inVideo): break;
-
+    case !!(params.videoPubID): break;
     default:
       utils.logWarn(`[GumGum] No product selected for the placement ${adUnitCode}, please check your implementation.`);
       return false;
@@ -219,8 +219,14 @@ function buildRequests (validBidRequests, bidderRequest) {
       transactionId,
       userId = {}
     } = bidRequest;
-    const bannerSizes = mediaTypes.banner && mediaTypes.banner.sizes;
+    let sizes = [1, 1];
     let data = {};
+
+    if (mediaTypes.banner) {
+      sizes = mediaTypes.banner.sizes;
+    } else if (mediaTypes.video) {
+      sizes = mediaTypes.video.playerSize;
+    }
 
     if (pageViewId) {
       data.pv = pageViewId;
@@ -243,6 +249,11 @@ function buildRequests (validBidRequests, bidderRequest) {
     if (params.ICV) {
       data.ni = parseInt(params.ICV, 10);
       data.pi = 5;
+    }
+    if (params.videoPubID) {
+      data = Object.assign(data, _getVidParams(mediaTypes.video));
+      data.pubId = params.videoPubID;
+      data.pi = 7;
     }
     if (params.video) {
       data = Object.assign(data, _getVidParams(mediaTypes.video));
@@ -273,7 +284,7 @@ function buildRequests (validBidRequests, bidderRequest) {
       tId: transactionId,
       pi: data.pi,
       selector: params.selector,
-      sizes: bannerSizes || bidRequest.sizes,
+      sizes,
       url: BID_ENDPOINT,
       method: 'GET',
       data: Object.assign(data, _getBrowserParams(topWindowUrl), _getDigiTrustQueryParams(userId), _getTradeDeskIDParam(userId))

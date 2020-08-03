@@ -114,6 +114,24 @@ describe('gumgumAdapter', function () {
         }
       }
     ];
+    const vidMediaTypes = {
+      video: {
+        playerSize: [640, 480],
+        context: 'instream',
+        minduration: 1,
+        maxduration: 2,
+        linearity: 1,
+        startdelay: 1,
+        placement: 123456,
+        protocols: [1, 2]
+      }
+    };
+
+    it('should return a defined sizes field for video', function () {
+      const request = { ...bidRequests[0], mediaTypes: vidMediaTypes, params: { 'videoPubID': 123 } };
+      const bidRequest = spec.buildRequests([request])[0];
+      expect(bidRequest.sizes).to.equal(vidMediaTypes.video.playerSize);
+    });
 
     it('sends bid request to ENDPOINT via GET', function () {
       const request = spec.buildRequests(bidRequests)[0];
@@ -142,6 +160,13 @@ describe('gumgumAdapter', function () {
       const bidRequest = spec.buildRequests([request])[0];
       expect(bidRequest.data).to.include.any.keys('pubId');
       expect(bidRequest.data.pubId).to.equal(request.params.inScreenPubID);
+      expect(bidRequest.data).to.not.include.any.keys('t');
+    });
+    it('should send pubId if videoPubID param is specified', function () {
+      const request = { ...bidRequests[0], mediaTypes: vidMediaTypes, params: { 'videoPubID': 123 } };
+      const bidRequest = spec.buildRequests([request])[0];
+      expect(bidRequest.data).to.include.any.keys('pubId');
+      expect(bidRequest.data.pubId).to.equal(request.params.videoPubID);
       expect(bidRequest.data).to.not.include.any.keys('t');
     });
     it('should set a ni parameter in bid request if ICV request param is found', function () {
@@ -402,7 +427,7 @@ describe('gumgumAdapter', function () {
     });
 
     it('updates jcsi object when the server response jcsi prop is found', function () {
-      const response = Object.assign({cw: 'AD_JSON'}, serverResponse);
+      const response = Object.assign({ cw: 'AD_JSON' }, serverResponse);
       const bidResponse = spec.interpretResponse({ body: response }, bidRequest)[0].ad;
       const decodedResponse = JSON.parse(atob(bidResponse));
       expect(decodedResponse.jcsi).to.eql(JCSI);
