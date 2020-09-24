@@ -27,10 +27,11 @@ export const spec = {
     const refererParams = (refererInfo && refererInfo.referer) ? { xf: [base64urlEncode(refererInfo.referer)] } : {};
     const id5Params = (getId5Id(validBidRequests)) ? { x5: [getId5Id(validBidRequests)] } : {};
     const slots = validBidRequests.map(bid => ({ slotname: bidToSlotName(bid) }));
+    const debugParam = getDebugParam() ? { in: [getDebugParam()] } : {};
 
     const payload = {
       slots: slots,
-      parameters: { ...targets, ...gdprParams, ...refererParams, ...id5Params }
+      parameters: { ...targets, ...gdprParams, ...refererParams, ...id5Params, ...debugParam }
     }
 
     const account = getAccount(validBidRequests);
@@ -219,6 +220,11 @@ function getAdDetails(ad) {
 
 function base64urlEncode(s) {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function getDebugParam() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('adheseDebug');
 }
 
 registerBidder(spec);
