@@ -1,7 +1,9 @@
 'use strict';
 
+// import { utils } from 'istanbul';
+import * as utils from '../src/utils.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
-import { BANNER, VIDEO } from '../src/mediaTypes.js';
+import { BANNER, VIDEO, ADPOD } from '../src/mediaTypes.js';
 
 const BIDDER_CODE = 'adhese';
 const GVLID = 553;
@@ -102,11 +104,29 @@ function adResponse(bid, ad) {
   });
 
   if (bidResponse.mediaType === VIDEO) {
+    if (adDetails.originData.orderProperty) {
+      bidResponse.meta = {
+        primaryCatId: adDetails.originData.orderProperty.substring('iab_cat-'.length, adDetails.originData.orderProperty.length)
+      }
+    } else {
+      bidResponse.meta = {
+        primaryCatId: ''
+      }
+    }    
     bidResponse.vastXml = markup;
+    let durSec = 0;
+    if (isAdheseAd(ad)) {
+      durSec = Number.parseInt(ad.adDuration2nd);
+    }
+    bidResponse.video = {
+      context: ADPOD,
+      durationSeconds: durSec
+    }
   } else {
     const counter = ad.impressionCounter ? "<img src='" + ad.impressionCounter + "' style='height:1px; width:1px; margin: -1px -1px; display:none;'/>" : '';
     bidResponse.ad = markup + counter;
-  }
+  }  
+
   return bidResponse;
 }
 
@@ -189,6 +209,7 @@ function getAdDetails(ad) {
   let originData = {};
   let origin = '';
   let originInstance = '';
+  let iabCatRegex = new RegExp('iab_cat-([^,]*)');
 
   if (isAdheseAd(ad)) {
     creativeId = ad.id;
