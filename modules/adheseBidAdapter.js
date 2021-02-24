@@ -28,7 +28,8 @@ export const spec = {
 
     const slots = validBidRequests.map(bid => ({
       slotname: bidToSlotName(bid),
-      parameters: cleanTargets(bid.params.data)
+      parameters: cleanTargets(bid.params.data),
+      markupAsUrl: isVideoBid(bid)
     }));
 
     const payload = {
@@ -175,6 +176,10 @@ function isAdheseAd(ad) {
 function getMediaType(markup) {
   const isVideo = markup.trim().toLowerCase().match(/<\?xml|<vast/);
   return isVideo ? VIDEO : BANNER;
+}
+
+function isVideoBid(bid) {
+  return bid.mediaTypes && bid.mediaTypes[VIDEO];
 }
 
 function getAdMarkup(ad) {
