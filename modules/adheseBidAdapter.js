@@ -2,6 +2,8 @@
 
 import { registerBidder } from '../src/adapters/bidderFactory.js';
 import { BANNER, VIDEO } from '../src/mediaTypes.js';
+import { config } from '../src/config.js';
+
 
 const BIDDER_CODE = 'adhese';
 const GVLID = 553;
@@ -20,11 +22,15 @@ export const spec = {
     if (validBidRequests.length === 0) {
       return null;
     }
+
     const { gdprConsent, refererInfo } = bidderRequest;
 
+    const adheseConfig = config.getConfig('adhese');
     const gdprParams = (gdprConsent && gdprConsent.consentString) ? { xt: [gdprConsent.consentString] } : {};
     const refererParams = (refererInfo && refererInfo.referer) ? { xf: [base64urlEncode(refererInfo.referer)] } : {};
-    const commonParams = { ...gdprParams, ...refererParams };
+    const globalCustomParams = (adheseConfig && adheseConfig.globalTargets) ? adheseConfig.globalTargets : {};
+    const commonParams = { ...gdprParams, ...refererParams, ...globalCustomParams };
+    const vastContentAsUrl = (adheseConfig && adheseConfig.vastContentAsUrl !== 'undefined') ? adheseConfig.vastContentAsUrl : true;
 
     const slots = validBidRequests.map(bid => ({
       slotname: bidToSlotName(bid),
@@ -34,7 +40,7 @@ export const spec = {
     const payload = {
       slots: slots,
       parameters: commonParams,
-      vastContentAsUrl: true,
+      vastContentAsUrl: vastContentAsUrl,
       user: {
         ext: {
           eids: getEids(validBidRequests),
