@@ -28,9 +28,9 @@ export const spec = {
     const adheseConfig = config.getConfig('adhese');
     const gdprParams = (gdprConsent && gdprConsent.consentString) ? { xt: [gdprConsent.consentString] } : {};
     const refererParams = (refererInfo && refererInfo.referer) ? { xf: [base64urlEncode(refererInfo.referer)] } : {};
-    const globalCustomParams = (adheseConfig && adheseConfig.globalTargets) ? adheseConfig.globalTargets : {};
+    const globalCustomParams = (adheseConfig && adheseConfig.globalTargets) ? cleanTargets(adheseConfig.globalTargets) : {};
     const commonParams = { ...gdprParams, ...refererParams, ...globalCustomParams };
-    const vastContentAsUrl = (adheseConfig && adheseConfig.vastContentAsUrl !== 'undefined') ? adheseConfig.vastContentAsUrl : true;
+    const vastContentAsUrl = (adheseConfig && adheseConfig.vastContentAsUrl !== 'undefined' && adheseConfig.vastContentAsUrl == false) ? false : true;
 
     const slots = validBidRequests.map(bid => ({
       slotname: bidToSlotName(bid),
