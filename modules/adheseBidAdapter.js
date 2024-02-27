@@ -2,6 +2,7 @@
 
 import { registerBidder } from '../src/adapters/bidderFactory.js';
 import { BANNER, VIDEO } from '../src/mediaTypes.js';
+import { config } from '../src/config.js';
 
 const BIDDER_CODE = 'adhese';
 const GVLID = 553;
@@ -20,11 +21,17 @@ export const spec = {
     if (validBidRequests.length === 0) {
       return null;
     }
+
     const { gdprConsent, refererInfo } = bidderRequest;
 
+    const adheseConfig = config.getConfig('adhese');
     const gdprParams = (gdprConsent && gdprConsent.consentString) ? { xt: [gdprConsent.consentString] } : {};
-    const refererParams = (refererInfo && refererInfo.referer) ? { xf: [base64urlEncode(refererInfo.referer)] } : {};
-    const commonParams = { ...gdprParams, ...refererParams };
+    // TODO: is 'page' the right value here?
+    const refererParams = (refererInfo && refererInfo.page) ? { xf: [base64urlEncode(refererInfo.page)] } : {};
+    const globalCustomParams = (adheseConfig && adheseConfig.globalTargets) ? cleanTargets(adheseConfig.globalTargets) : {};
+    const commonParams = { ...globalCustomParams, ...gdprParams, ...refererParams };
+    const vastContentAsUrl = !(adheseConfig && adheseConfig.vastContentAsUrl == false);
+    const customEndpoint = adheseConfig && adheseConfig.customEndpoint;
 
     const slots = validBidRequests.map(bid => ({
       slotname: bidToSlotName(bid),
@@ -34,7 +41,7 @@ export const spec = {
     const payload = {
       slots: slots,
       parameters: commonParams,
-      vastContentAsUrl: true,
+      vastContentAsUrl: vastContentAsUrl,
       user: {
         ext: {
           eids: getEids(validBidRequests),
@@ -43,7 +50,7 @@ export const spec = {
     };
 
     const account = getAccount(validBidRequests);
-    const uri = 'https://ads-' + account + '.adhese.com/json';
+    const uri = customEndpoint ? customEndpoint : 'https://ads-' + account + '.adhese.com/json';
 
     return {
       method: 'POST',
