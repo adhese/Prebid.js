@@ -1,8 +1,9 @@
 import { expect } from 'chai';
-import { spec } from 'modules/visxBidAdapter.js';
+import { spec, storage } from 'modules/visxBidAdapter.js';
 import { config } from 'src/config.js';
 import { newBidder } from 'src/adapters/bidderFactory.js';
 import * as utils from 'src/utils.js';
+import { makeSlot } from '../integration/faker/googletag.js';
 
 describe('VisxAdapter', function () {
   const adapter = newBidder(spec);
@@ -17,7 +18,7 @@ describe('VisxAdapter', function () {
     let bid = {
       'bidder': 'visx',
       'params': {
-        'uid': '903536'
+        'uid': 903536
       },
       'adUnitCode': 'adunit-code',
       'sizes': [[300, 250], [300, 600]],
@@ -35,6 +36,15 @@ describe('VisxAdapter', function () {
       delete bid.params;
       bid.params = {
         'uid': 0
+      };
+      expect(spec.isBidRequestValid(bid)).to.equal(false);
+    });
+
+    it('should return false when uid can not be parsed as number', function () {
+      let bid = Object.assign({}, bid);
+      delete bid.params;
+      bid.params = {
+        'uid': 'sdvsdv'
       };
       expect(spec.isBidRequestValid(bid)).to.equal(false);
     });
@@ -72,13 +82,16 @@ describe('VisxAdapter', function () {
       });
       return res;
     }
+
+    let cookiesAreEnabledStub, localStorageIsEnabledStub;
+
     const bidderRequest = {
       timeout: 3000,
       refererInfo: {
-        referer: 'https://example.com'
+        page: 'https://example.com'
       }
     };
-    const referrer = bidderRequest.refererInfo.referer;
+    const referrer = bidderRequest.refererInfo.page;
     const schainObject = {
       ver: '1.0',
       nodes: [
@@ -101,7 +114,7 @@ describe('VisxAdapter', function () {
       {
         'bidder': 'visx',
         'params': {
-          'uid': 903535
+          'uid': '903535'
         },
         'adUnitCode': 'adunit-code-2',
         'sizes': [[728, 90], [300, 250]],
@@ -145,17 +158,17 @@ describe('VisxAdapter', function () {
     const expectedFullImps = [{
       'id': '30b31c1838de1e',
       'banner': {'format': [{'w': 300, 'h': 250}, {'w': 300, 'h': 600}]},
-      'ext': {'bidder': {'uid': 903535}}
+      'ext': {'bidder': {'uid': 903535, 'adslotExists': false}}
     },
     {
       'id': '3150ccb55da321',
       'banner': {'format': [{'w': 728, 'h': 90}, {'w': 300, 'h': 250}]},
-      'ext': {'bidder': {'uid': 903535}}
+      'ext': {'bidder': {'uid': 903535, 'adslotExists': false}}
     },
     {
       'id': '42dbe3a7168a6a',
       'banner': {'format': [{'w': 300, 'h': 250}, {'w': 300, 'h': 600}]},
-      'ext': {'bidder': {'uid': 903536}}
+      'ext': {'bidder': {'uid': 903536, 'adslotExists': false}}
     },
     {
       'id': '39a4e3a7168a6a',
@@ -169,6 +182,24 @@ describe('VisxAdapter', function () {
       },
       'ext': {'bidder': {'uid': 903537}}
     }];
+
+    before(() => {
+      $$PREBID_GLOBAL$$.bidderSettings = {
+        visx: {
+          storageAllowed: false
+        }
+      };
+      localStorageIsEnabledStub = sinon.stub(storage, 'localStorageIsEnabled');
+      cookiesAreEnabledStub = sinon.stub(storage, 'cookiesAreEnabled');
+      localStorageIsEnabledStub.returns(false);
+      cookiesAreEnabledStub.returns(false);
+    });
+
+    after(() => {
+      localStorageIsEnabledStub.restore();
+      cookiesAreEnabledStub.restore();
+      $$PREBID_GLOBAL$$.bidderSettings = {};
+    });
 
     it('should attach valid params to the tag', function () {
       const firstBid = bidRequests[0];
@@ -412,13 +443,14 @@ describe('VisxAdapter', function () {
       });
       return res;
     }
+    let cookiesAreEnabledStub, localStorageIsEnabledStub;
     const bidderRequest = {
       timeout: 3000,
       refererInfo: {
-        referer: 'https://example.com'
+        page: 'https://example.com'
       }
     };
-    const referrer = bidderRequest.refererInfo.referer;
+    const referrer = bidderRequest.refererInfo.page;
     const bidRequests = [
       {
         'bidder': 'visx',
@@ -439,6 +471,24 @@ describe('VisxAdapter', function () {
       }
     ];
 
+    before(() => {
+      $$PREBID_GLOBAL$$.bidderSettings = {
+        visx: {
+          storageAllowed: false
+        }
+      };
+      localStorageIsEnabledStub = sinon.stub(storage, 'localStorageIsEnabled');
+      cookiesAreEnabledStub = sinon.stub(storage, 'cookiesAreEnabled');
+      localStorageIsEnabledStub.returns(false);
+      cookiesAreEnabledStub.returns(false);
+    });
+
+    after(() => {
+      localStorageIsEnabledStub.restore();
+      cookiesAreEnabledStub.restore();
+      $$PREBID_GLOBAL$$.bidderSettings = {};
+    });
+
     it('should send requst for banner bid', function () {
       const request = spec.buildRequests([bidRequests[0]], bidderRequest);
       const payload = parseRequest(request.url);
@@ -452,7 +502,136 @@ describe('VisxAdapter', function () {
         'imp': [{
           'id': '39aff3a7169a6a',
           'banner': {'format': [{'w': 300, 'h': 250}, {'w': 300, 'h': 600}]},
-          'ext': {'bidder': {'uid': 903538}}
+          'ext': {'bidder': {'uid': 903538, 'adslotExists': false}}
+        }],
+        'tmax': 3000,
+        'cur': ['EUR'],
+        'source': {
+          'ext': {
+            'wrapperType': 'Prebid_js',
+            'wrapperVersion': '$prebid.version$'
+          }
+        },
+        'site': {'page': referrer}
+      });
+    });
+  });
+
+  describe('buildRequests (check ad slot exists)', function () {
+    function parseRequest(url) {
+      const res = {};
+      (url.split('?')[1] || '').split('&').forEach((it) => {
+        const couple = it.split('=');
+        res[couple[0]] = decodeURIComponent(couple[1]);
+      });
+      return res;
+    }
+    let cookiesAreEnabledStub, localStorageIsEnabledStub;
+    const bidderRequest = {
+      timeout: 3000,
+      refererInfo: {
+        page: 'https://example.com'
+      }
+    };
+    const referrer = bidderRequest.refererInfo.page;
+    const bidRequests = [
+      {
+        'bidder': 'visx',
+        'params': {
+          'uid': 903535
+        },
+        'adUnitCode': 'visx-adunit-code-1',
+        'sizes': [[300, 250], [300, 600]],
+        'bidId': '30b31c1838de1e',
+        'bidderRequestId': '22edbae2733bf6',
+        'auctionId': '1d1a030790a475',
+      },
+      {
+        'bidder': 'visx',
+        'params': {
+          'uid': 903535
+        },
+        'adUnitCode': 'visx-adunit-code-2',
+        'sizes': [[300, 250], [300, 600]],
+        'bidId': '30b31c1838de1e',
+        'bidderRequestId': '22edbae2733bf6',
+        'auctionId': '1d1a030790a475',
+      }
+    ];
+    let sandbox;
+    let documentStub;
+
+    before(function() {
+      sandbox = sinon.sandbox.create();
+      documentStub = sandbox.stub(document, 'getElementById');
+      documentStub.withArgs('visx-adunit-code-1').returns({
+        id: 'visx-adunit-code-1'
+      });
+      documentStub.withArgs('visx-adunit-element-2').returns({
+        id: 'visx-adunit-element-2'
+      });
+
+      $$PREBID_GLOBAL$$.bidderSettings = {
+        visx: {
+          storageAllowed: false
+        }
+      };
+      localStorageIsEnabledStub = sinon.stub(storage, 'localStorageIsEnabled');
+      cookiesAreEnabledStub = sinon.stub(storage, 'cookiesAreEnabled');
+      localStorageIsEnabledStub.returns(false);
+      cookiesAreEnabledStub.returns(false);
+    });
+
+    after(function() {
+      sandbox.restore();
+      localStorageIsEnabledStub.restore();
+      cookiesAreEnabledStub.restore();
+      $$PREBID_GLOBAL$$.bidderSettings = {};
+    });
+
+    it('should find ad slot by ad unit code as element id', function () {
+      const request = spec.buildRequests([bidRequests[0]], bidderRequest);
+      const payload = parseRequest(request.url);
+      expect(payload).to.be.an('object');
+      expect(payload).to.have.property('auids', '903535');
+
+      const postData = request.data;
+      expect(postData).to.be.an('object');
+      expect(postData).to.deep.equal({
+        'id': '22edbae2733bf6',
+        'imp': [{
+          'id': '30b31c1838de1e',
+          'banner': {'format': [{'w': 300, 'h': 250}, {'w': 300, 'h': 600}]},
+          'ext': {'bidder': {'uid': 903535, 'adslotExists': true}}
+        }],
+        'tmax': 3000,
+        'cur': ['EUR'],
+        'source': {
+          'ext': {
+            'wrapperType': 'Prebid_js',
+            'wrapperVersion': '$prebid.version$'
+          }
+        },
+        'site': {'page': referrer}
+      });
+    });
+
+    it('should find ad slot by ad unit code as adUnitPath', function () {
+      makeSlot({code: 'visx-adunit-code-2', divId: 'visx-adunit-element-2'});
+
+      const request = spec.buildRequests([bidRequests[1]], bidderRequest);
+      const payload = parseRequest(request.url);
+      expect(payload).to.be.an('object');
+      expect(payload).to.have.property('auids', '903535');
+
+      const postData = request.data;
+      expect(postData).to.be.an('object');
+      expect(postData).to.deep.equal({
+        'id': '22edbae2733bf6',
+        'imp': [{
+          'id': '30b31c1838de1e',
+          'banner': {'format': [{'w': 300, 'h': 250}, {'w': 300, 'h': 600}]},
+          'ext': {'bidder': {'uid': 903535, 'adslotExists': true}}
         }],
         'tmax': 3000,
         'cur': ['EUR'],
@@ -1078,6 +1257,7 @@ describe('VisxAdapter', function () {
       const request = spec.buildRequests(bidRequests);
       const pendingUrl = 'https://t.visx.net/track/pending/123123123';
       const winUrl = 'https://t.visx.net/track/win/53245341';
+      const runtimeUrl = 'https://t.visx.net/track/status/12345678';
       const expectedResponse = [
         {
           'requestId': '300bfeb0d71a5b',
@@ -1102,7 +1282,8 @@ describe('VisxAdapter', function () {
           'ext': {
             'events': {
               'pending': pendingUrl,
-              'win': winUrl
+              'win': winUrl,
+              'runtime': runtimeUrl
             },
             'targeting': {
               'hb_visx_product': 'understitial',
@@ -1118,6 +1299,9 @@ describe('VisxAdapter', function () {
       utils.deepSetValue(serverResponse.bid[0], 'ext.prebid.events', {
         pending: pendingUrl,
         win: winUrl,
+      });
+      utils.deepSetValue(serverResponse.bid[0], 'ext.visx.events', {
+        runtime: runtimeUrl
       });
       const result = spec.interpretResponse({'body': {'seatbid': [serverResponse]}}, request);
       expect(result).to.deep.equal(expectedResponse);
@@ -1146,10 +1330,44 @@ describe('VisxAdapter', function () {
       expect(utils.triggerPixel.calledOnceWith(trackUrl)).to.equal(true);
     });
 
+    it('onBidWon with runtime tracker (0 < timeToRespond <= 5000 )', function () {
+      const trackUrl = 'https://t.visx.net/track/win/123123123';
+      const runtimeUrl = 'https://t.visx.net/track/status/12345678/{STATUS_CODE}';
+      const bid = { auctionId: '1', ext: { events: { win: trackUrl, runtime: runtimeUrl } }, timeToRespond: 100 };
+      spec.onBidWon(bid);
+      expect(utils.triggerPixel.calledTwice).to.equal(true);
+      expect(utils.triggerPixel.calledWith(trackUrl)).to.equal(true);
+      expect(utils.triggerPixel.calledWith(runtimeUrl.replace('{STATUS_CODE}', 999002))).to.equal(true);
+    });
+
+    it('onBidWon with runtime tracker (timeToRespond <= 0 )', function () {
+      const runtimeUrl = 'https://t.visx.net/track/status/12345678/{STATUS_CODE}';
+      const bid = { auctionId: '2', ext: { events: { runtime: runtimeUrl } }, timeToRespond: 0 };
+      spec.onBidWon(bid);
+      expect(utils.triggerPixel.calledOnceWith(runtimeUrl.replace('{STATUS_CODE}', 999000))).to.equal(true);
+    });
+
+    it('onBidWon with runtime tracker (timeToRespond > 5000 )', function () {
+      const runtimeUrl = 'https://t.visx.net/track/status/12345678/{STATUS_CODE}';
+      const bid = { auctionId: '3', ext: { events: { runtime: runtimeUrl } }, timeToRespond: 5001 };
+      spec.onBidWon(bid);
+      expect(utils.triggerPixel.calledOnceWith(runtimeUrl.replace('{STATUS_CODE}', 999100))).to.equal(true);
+    });
+
+    it('onBidWon runtime tracker should be called once per auction', function () {
+      const runtimeUrl = 'https://t.visx.net/track/status/12345678/{STATUS_CODE}';
+      const bid1 = { auctionId: '4', ext: { events: { runtime: runtimeUrl } }, timeToRespond: 100 };
+      spec.onBidWon(bid1);
+      const bid2 = { auctionId: '4', ext: { events: { runtime: runtimeUrl } }, timeToRespond: 200 };
+      spec.onBidWon(bid2);
+      expect(utils.triggerPixel.calledOnceWith(runtimeUrl.replace('{STATUS_CODE}', 999002))).to.equal(true);
+    });
+
     it('onTimeout', function () {
-      const data = { timeout: 3000, bidId: '23423', params: { uid: 1 } };
+      const data = [{ timeout: 3000, adUnitCode: 'adunit-code-1', auctionId: '1cbd2feafe5e8b', bidder: 'visx', bidId: '23423', params: [{ uid: '1' }] }];
+      const expectedData = [{ timeout: 3000, params: [{ uid: 1 }] }];
       spec.onTimeout(data);
-      expect(utils.triggerPixel.calledOnceWith('https://t.visx.net/track/bid_timeout?data=' + JSON.stringify(data))).to.equal(true);
+      expect(utils.triggerPixel.calledOnceWith('https://t.visx.net/track/bid_timeout//' + JSON.stringify(expectedData))).to.equal(true);
     });
   });
 
@@ -1195,6 +1413,102 @@ describe('VisxAdapter', function () {
       const { path, query } = parseUrl(syncs[0].url);
       expect(path).to.equal('push_sync');
       expect(query).to.deep.equal({});
+    });
+  });
+
+  describe('first party user id', function () {
+    const USER_ID_KEY = '__vads';
+    const USER_ID_DUMMY_VALUE_COOKIE = 'dummy_id_cookie';
+    const USER_ID_DUMMY_VALUE_LOCAL_STORAGE = 'dummy_id_local_storage';
+
+    let getDataFromLocalStorageStub, localStorageIsEnabledStub;
+    let getCookieStub, cookiesAreEnabledStub;
+
+    const bidRequests = [
+      {
+        'bidder': 'visx',
+        'params': {
+          'uid': 903535
+        },
+        'adUnitCode': 'adunit-code-1',
+        'sizes': [[300, 250], [300, 600]],
+        'bidId': '30b31c1838de1e',
+        'bidderRequestId': '22edbae2733bf6',
+        'auctionId': '1d1a030790a475',
+      }
+    ];
+    const bidderRequest = {
+      timeout: 3000,
+      refererInfo: {
+        page: 'https://example.com'
+      }
+    };
+
+    beforeEach(() => {
+      $$PREBID_GLOBAL$$.bidderSettings = {
+        visx: {
+          storageAllowed: true
+        }
+      };
+      cookiesAreEnabledStub = sinon.stub(storage, 'cookiesAreEnabled');
+      localStorageIsEnabledStub = sinon.stub(storage, 'localStorageIsEnabled');
+    });
+
+    afterEach(() => {
+      cookiesAreEnabledStub.restore();
+      localStorageIsEnabledStub.restore();
+      getCookieStub && getCookieStub.restore();
+      getDataFromLocalStorageStub && getDataFromLocalStorageStub.restore();
+      $$PREBID_GLOBAL$$.bidderSettings = {};
+    });
+
+    it('should not pass user id if both cookies and local storage are not available', function () {
+      cookiesAreEnabledStub.returns(false);
+      localStorageIsEnabledStub.returns(false);
+
+      const request = spec.buildRequests(bidRequests, bidderRequest);
+
+      expect(request.data.user).to.be.undefined;
+    });
+
+    it('should get user id from cookie if available', function () {
+      cookiesAreEnabledStub.returns(true);
+      localStorageIsEnabledStub.returns(false);
+      getCookieStub = sinon.stub(storage, 'getCookie');
+      getCookieStub.withArgs(USER_ID_KEY).returns(USER_ID_DUMMY_VALUE_COOKIE);
+
+      const request = spec.buildRequests(bidRequests, bidderRequest);
+
+      expect(request.data.user.ext.vads).to.equal(USER_ID_DUMMY_VALUE_COOKIE);
+    });
+
+    it('should get user id from local storage if available', function () {
+      cookiesAreEnabledStub.returns(false);
+      localStorageIsEnabledStub.returns(true);
+      getDataFromLocalStorageStub = sinon.stub(storage, 'getDataFromLocalStorage');
+      getDataFromLocalStorageStub.withArgs(USER_ID_KEY).returns(USER_ID_DUMMY_VALUE_LOCAL_STORAGE);
+
+      const request = spec.buildRequests(bidRequests, bidderRequest);
+
+      expect(request.data.user.ext.vads).to.equal(USER_ID_DUMMY_VALUE_LOCAL_STORAGE);
+    });
+
+    it('should create user id and store it in cookies (if user id does not exist)', function () {
+      cookiesAreEnabledStub.returns(true);
+      localStorageIsEnabledStub.returns(false);
+
+      const request = spec.buildRequests(bidRequests, bidderRequest);
+      expect(storage.getCookie(USER_ID_KEY)).to.be.a('string');
+      expect(request.data.user.ext.vads).to.be.a('string');
+    });
+
+    it('should create user id and store it in local storage (if user id does not exist)', function () {
+      cookiesAreEnabledStub.returns(false);
+      localStorageIsEnabledStub.returns(true);
+
+      const request = spec.buildRequests(bidRequests, bidderRequest);
+      expect(storage.getDataFromLocalStorage(USER_ID_KEY)).to.be.a('string');
+      expect(request.data.user.ext.vads).to.be.a('string');
     });
   });
 });

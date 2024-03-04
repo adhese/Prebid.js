@@ -10,6 +10,12 @@ import {ajax} from '../src/ajax.js';
 import {submodule} from '../src/hook.js';
 import {coppaDataHandler, uspDataHandler} from '../src/adapterManager.js';
 
+/**
+ * @typedef {import('../modules/userId/index.js').Submodule} Submodule
+ * @typedef {import('../modules/userId/index.js').SubmoduleConfig} SubmoduleConfig
+ * @typedef {import('../modules/userId/index.js').ConsentData} ConsentData
+ */
+
 const MODULE_NAME = 'kpuid';
 const ID_SVC = 'https://id.knsso.com/id';
 // These values should NEVER change. If
@@ -180,7 +186,7 @@ function kinessoSyncUrl(accountId, consentData) {
   const usPrivacyString = uspDataHandler.getConsentData();
   let kinessoSyncUrl = `${ID_SVC}?accountid=${accountId}`;
   if (usPrivacyString) {
-    kinessoSyncUrl = `${kinessoSyncUrl}?us_privacy=${usPrivacyString}`;
+    kinessoSyncUrl = `${kinessoSyncUrl}&us_privacy=${usPrivacyString}`;
   }
   if (!consentData || typeof consentData.gdprApplies !== 'boolean' || !consentData.gdprApplies) return kinessoSyncUrl;
 
@@ -233,8 +239,13 @@ export const kinessoIdSubmodule = {
     const payloadString = JSON.stringify(kinessoIdPayload);
     ajax(kinessoSyncUrl(accountId, consentData), syncId(knnsoId), payloadString, {method: 'POST', withCredentials: true});
     return {'id': knnsoId};
-  }
-
+  },
+  eids: {
+    'kpuid': {
+      source: 'kpuid.com',
+      atype: 3
+    },
+  },
 };
 
 // Register submodule for userId
