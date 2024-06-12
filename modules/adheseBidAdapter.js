@@ -31,6 +31,7 @@ export const spec = {
     const globalCustomParams = (adheseConfig && adheseConfig.globalTargets) ? cleanTargets(adheseConfig.globalTargets) : {};
     const commonParams = { ...globalCustomParams, ...gdprParams, ...refererParams };
     const vastContentAsUrl = !(adheseConfig && adheseConfig.vastContentAsUrl == false);
+    const customEndpoint = adheseConfig && adheseConfig.customEndpoint;
 
     const slots = validBidRequests.map(bid => ({
       slotname: bidToSlotName(bid),
@@ -49,7 +50,7 @@ export const spec = {
     };
 
     const account = getAccount(validBidRequests);
-    const uri = 'https://ads-' + account + '.adhese.com/json';
+    const uri = customEndpoint ? customEndpoint : 'https://ads-' + account + '.adhese.com/json';
 
     return {
       method: 'POST',
