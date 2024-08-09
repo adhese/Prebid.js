@@ -40,21 +40,9 @@ function getBidRequestData(bidReqConfig, callback, config) {
           return;
         }
 
-        let mobianGarmRisk = response.garm_risk || 'unknown';
+        let mobianRisk = response.garm_risk || 'unknown';
 
-        if (mobianGarmRisk === 'unknown') {
-          const risks = ['garm_high_risk', 'garm_medium_risk', 'garm_low_risk', 'garm_no_risk'];
-          const riskLevels = ['high', 'medium', 'low', 'none'];
-
-          for (let i = 0; i < risks.length; i++) {
-            if (response[risks[i]]) {
-              mobianGarmRisk = riskLevels[i];
-              break;
-            }
-          }
-        }
-
-        const garmCategories = Object.keys(response)
+        const contentCategories = Object.keys(response)
           .filter(key => key.startsWith('garm_content_category_') && response[key])
           .map(key => key.replace('garm_content_category_', ''));
 
@@ -67,19 +55,23 @@ function getBidRequestData(bidReqConfig, callback, config) {
           .map(key => key.replace('emotion_', ''));
 
         const risk = {
-          'mobianGarmRisk': mobianGarmRisk,
-          'garmContentCategories': garmCategories,
-          'sentiment': sentiment,
-          'emotions': emotions
+          risk: mobianRisk,
+          contentCategories: contentCategories,
+          sentiment: sentiment,
+          emotions: emotions
         };
 
+        deepSetValue(ortb2Site.ext, 'data.mobianRisk', mobianRisk);
+        deepSetValue(ortb2Site.ext, 'data.mobianContentCategories', contentCategories);
+        deepSetValue(ortb2Site.ext, 'data.mobianSentiment', sentiment);
+        deepSetValue(ortb2Site.ext, 'data.mobianEmotions', emotions);
+
         resolve(risk);
-        deepSetValue(ortb2Site.ext, 'data.mobian', risk);
-        callback()
+        callback();
       },
       error: function () {
         resolve({});
-        callback()
+        callback();
       }
     });
   });
