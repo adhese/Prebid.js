@@ -35,22 +35,25 @@ pbjs.setConfig({
         advertiserTargeting: true,
         // Or set it as an array to pick specific targeting keys:
         // advertiserTargeting: ['genres', 'emotions', 'themes'],
-        // Available values: 'apValues', 'categories', 'emotions', 'genres', 'risk', 'sentiment', 'themes', 'tones'
+        // Available values: 'apValues', 'categories', 'emotions', 'genres', 'risk', 'sentiment', 'tg', 'themes', 'tones', 'tq'
 
         // Enable targeting keys for publisher data
         publisherTargeting: true,
         // Or set it as an array to pick specific targeting keys:
         // publisherTargeting: ['tones', 'risk'],
-        // Available values: 'apValues', 'categories', 'emotions', 'genres', 'risk', 'sentiment', 'themes', 'tones'
+        // Available values: 'apValues', 'categories', 'emotions', 'genres', 'risk', 'sentiment', 'tg', 'themes', 'tones', 'tq'
       }
     }]
   }
 });
 ```
 
+- With `advertiserTargeting: true` or `publisherTargeting: true`, add `includeTrafficQuality: true` to the `params` object.
+- With an array, list `tq` in it, e.g. `advertiserTargeting: ['genres', 'tq']`. `includeTrafficQuality` is ignored when the value is an array.
+
 ## Functionality
 
-At a high level, the Mobian RTD Module is designed to call the Mobian Contextal API on page load, requesting the Mobian classifications and results for the URL. The classifications and results are designed to be picked up by any SSP or DSP in the Prebid.js ecosystem. The module also supports placing the Mobian classifications on each ad slot on the page, thus allowing for targeting within GAM.
+At a high level, the Mobian RTD Module calls Mobian services on page load, requesting the configured classifications and results for the URL. Contextual classifications are requested from the Contextual API assessment endpoint. When `includeTrafficQuality` is set to `true`, a separate request is made to the traffic quality API. Configurations that request both types of data make the two requests independently so either result can still be used if the other request fails. The classifications and results are designed to be picked up by any SSP or DSP in the Prebid.js ecosystem. The module also supports placing the Mobian classifications on each ad slot on the page, thus allowing for targeting within GAM.
 
 ## Available Classifications
 
@@ -62,7 +65,7 @@ Prebid.outcomes.net endpoint key: mobianRisk
 
 Targetable Key: mobian_risk
 
-Possible values: "none", "low", "medium" or "high"
+Possible values: "low", "medium" or "high"
 
 Description: This category assesses whether content contains any potential risks or concerns to advertisers and returns a determination of Low Risk, Medium Risk, or High Risk based on the inclusion of sensitive or high-risk topics. Content that might be categorized as unsafe may include violence, hate speech, misinformation, or sensitive topics that most advertisers would like to avoid. Content that is explicit or overly graphic in nature will be more likely to fall into the High Risk tier compared to content that describes similar subjects in a more informative or educational manner.
 
@@ -74,7 +77,7 @@ Prebid.outcomes.net endpoint key: mobianContentCategories
 
 Targetable Key: mobian_categories
 
-Possible values: "adult_content", "arms", "crime", "death_injury", "debated_issue", "hate_speech", "drugs_alcohol", "obscenity", "piracy", "spam", "terrorism"
+Possible values: "adult", "arms", "crime", "death_injury", "debated_issue", "piracy", "hate_speech", "obscenity", "drugs", "spam", "terrorism" 
 
 Description: Brand Safety Categories contain categorical results for brand safety when relevant (e.g. Low Risk Adult Content). Note there can be Medium and High Risk content that is not associated to a specific brand safety category.
 
@@ -159,6 +162,60 @@ p0 = Advertisers (via Campaign IDs) should AVOID targeting these personas
 p1 = Advertisers (via Campaign IDs) should target these personas
 
 *AP Values is in the early stages of testing and is subject to change.
+
+------------------
+
+Traffic Quality (`tq`)
+
+quality.outcomes.net endpoint key: mobian_tq
+
+Targetable Key: mobian_tq
+
+Possible values: Integer values defined by the Mobian response
+
+Description: Measure of traffic quality.
+
+------------------
+
+Traffic Group (`tg`)
+
+Prebid.outcomes.net endpoint key: mobian_tg
+
+Targetable Key: mobian_tg
+
+Possible values: Integer values defined by the Mobian response
+
+Description: Traffic Group is returned with the contextual assessment results and remains independent from the request-specific `tq` signal.
+
+------------------
+
+Additional Results Fields (API response)
+
+The fields below are present in the Mobian Contextual API `results` schema and are useful for downstream interpretation of content maturity and taxonomy.
+
+mobianMpaaRating:
+
+Type: integer | null
+
+Description: MPAA-style maturity rating score represented as an integer value in the API response.
+
+Behavior when unavailable: omitted when null.
+
+mobianEsrbRating:
+
+Type: integer | null
+
+Description: ESRB-style maturity rating score represented as an integer value in the API response.
+
+Behavior when unavailable: omitted when null.
+
+mobianContentTaxonomy:
+
+Type: string[]
+
+Description: IAB content taxonomy categories (broad topic buckets such as "News" or "Health").
+
+Behavior when unavailable: may be returned as an empty array.
 
 ## GAM Targeting:
 

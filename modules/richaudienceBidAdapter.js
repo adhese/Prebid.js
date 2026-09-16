@@ -1,8 +1,8 @@
-import {deepAccess, triggerPixel} from '../src/utils.js';
-import {registerBidder} from '../src/adapters/bidderFactory.js';
-import {config} from '../src/config.js';
-import {BANNER, VIDEO} from '../src/mediaTypes.js';
-import {Renderer} from '../src/Renderer.js';
+import { deepAccess, triggerPixel } from '../src/utils.js';
+import { registerBidder } from '../src/adapters/bidderFactory.js';
+import { config } from '../src/config.js';
+import { BANNER, VIDEO } from '../src/mediaTypes.js';
+import { Renderer } from '../src/Renderer.js';
 import { getCurrencyFromBidderRequest } from '../libraries/ortb2Utils/currency.js';
 
 const BIDDER_CODE = 'richaudience';
@@ -11,7 +11,7 @@ let REFERER = '';
 export const spec = {
   code: BIDDER_CODE,
   gvlid: 108,
-  aliases: [{code: 'ra', gvlid: 108}],
+  aliases: [{ code: 'ra', gvlid: 108 }],
   supportedMediaTypes: [BANNER, VIDEO],
 
   /***
@@ -21,7 +21,7 @@ export const spec = {
    * @returns {boolean} True if this is a valid bid, and false otherwise
    */
   isBidRequestValid: function (bid) {
-    return !!(bid.params && bid.params.pid && bid.params.supplyType);
+    return !!(bid.params && bid.params.pid);
   },
   /***
    * Build a server request from the list of valid BidRequests
@@ -35,41 +35,33 @@ export const spec = {
         bidfloor: raiGetFloor(bid, config),
         ifa: bid.params.ifa,
         pid: bid.params.pid,
-        supplyType: bid.params.supplyType,
         currencyCode: getCurrencyFromBidderRequest(bidderRequest),
         auctionId: bid.auctionId,
-        bidId: bid.bidId,
-        BidRequestsCount: bid.bidRequestsCount,
-        bidder: bid.bidder,
-        bidderRequestId: bid.bidderRequestId,
         tagId: bid.adUnitCode,
         sizes: raiGetSizes(bid),
-        referer: (typeof bidderRequest.refererInfo.page != 'undefined' ? encodeURIComponent(bidderRequest.refererInfo.page) : null),
-        numIframes: (typeof bidderRequest.refererInfo.numIframes != 'undefined' ? bidderRequest.refererInfo.numIframes : null),
+        referer: (typeof bidderRequest.refererInfo.page !== 'undefined' ? encodeURIComponent(bidderRequest.refererInfo.page) : null),
         transactionId: bid.ortb2Imp?.ext?.tid,
         timeout: bidderRequest.timeout || 600,
         eids: deepAccess(bid, 'userIdAsEids') ? bid.userIdAsEids : [],
-        demand: raiGetDemandType(bid),
         videoData: raiGetVideoInfo(bid),
         scr_rsl: raiGetResolution(),
-        cpuc: (typeof window.navigator != 'undefined' ? window.navigator.hardwareConcurrency : null),
         kws: bid.params.keywords,
-        schain: bid.schain,
+        schain: bid?.ortb2?.source?.ext?.schain,
         gpid: raiSetPbAdSlot(bid),
         dsa: setDSA(bid),
         userData: deepAccess(bid, 'ortb2.user.data')
       };
 
-      REFERER = (typeof bidderRequest.refererInfo.page != 'undefined' ? encodeURIComponent(bidderRequest.refererInfo.page) : null)
+      REFERER = (typeof bidderRequest.refererInfo.page !== 'undefined' ? encodeURIComponent(bidderRequest.refererInfo.page) : null);
 
       payload.gdpr_consent = '';
       payload.gdpr = false;
 
       if (bidderRequest && bidderRequest.gdprConsent) {
-        if (typeof bidderRequest.gdprConsent.gdprApplies != 'undefined') {
+        if (typeof bidderRequest.gdprConsent.gdprApplies !== 'undefined') {
           payload.gdpr = bidderRequest.gdprConsent.gdprApplies;
         }
-        if (typeof bidderRequest.gdprConsent.consentString != 'undefined') {
+        if (typeof bidderRequest.gdprConsent.consentString !== 'undefined') {
           payload.gdpr_consent = bidderRequest.gdprConsent.consentString;
         }
       }
@@ -78,12 +70,12 @@ export const spec = {
         payload.privacy = {
           gpp: bidderRequest.gppConsent.gppString,
           gpp_sid: bidderRequest.gppConsent.applicableSections
-        }
+        };
       } else if (bidderRequest?.ortb2?.regs?.gpp) {
         payload.privacy = {
           gpp: bidderRequest.ortb2.regs.gpp,
           gpp_sid: bidderRequest.ortb2.regs.gpp_sid
-        }
+        };
       }
 
       var payloadString = JSON.stringify(payload);
@@ -94,6 +86,9 @@ export const spec = {
         method: 'POST',
         url: endpoint,
         data: payloadString,
+        bidId: bid.bidId,
+        videoData: payload.videoData,
+        adUnitCode: bid.adUnitCode,
       };
     });
   },
@@ -106,10 +101,10 @@ export const spec = {
   interpretResponse: function (serverResponse, bidRequest) {
     const bidResponses = [];
     // try catch
-    var response = serverResponse.body;
+    const response = serverResponse.body;
     if (response) {
-      var bidResponse = {
-        requestId: JSON.parse(bidRequest.data).bidId,
+      const bidResponse = {
+        requestId: bidRequest.bidId,
         cpm: response.cpm,
         width: response.width,
         height: response.height,
@@ -119,7 +114,7 @@ export const spec = {
         currency: response.currency,
         ttl: response.ttl,
         meta: {
-          advertiserDomains: [response.adomain[0]]
+          advertiserDomains: response.adomain?.length ? [response.adomain[0]] : []
         },
         dealId: response.dealId
       };
@@ -128,16 +123,16 @@ export const spec = {
         bidResponse.vastXml = response.vastXML;
         try {
           if (bidResponse.vastXml != null) {
-            if (JSON.parse(bidRequest.data).videoData.format == 'outstream' || JSON.parse(bidRequest.data).videoData.format == 'banner') {
+            if (bidRequest.videoData.format === 'outstream' || bidRequest.videoData.format === 'banner') {
               bidResponse.renderer = Renderer.install({
                 id: bidRequest.bidId,
-                adunitcode: bidRequest.tagId,
+                adUnitCode: bidRequest.adUnitCode,
                 loaded: false,
                 config: response.media_type,
                 url: 'https://cdn3.richaudience.com/prebidVideo/player.js'
               });
+              bidResponse.renderer.setRender(renderer);
             }
-            bidResponse.renderer.setRender(renderer);
           }
         } catch (e) {
           bidResponse.ad = response.adm;
@@ -162,16 +157,13 @@ export const spec = {
     const syncs = [];
 
     var rand = Math.floor(Math.random() * 9999999999);
-    var syncUrl = '';
     var consent = '';
     var consentGPP = '';
 
-    var raiSync = {};
+    const raiSync = raiGetSyncInclude(config);
 
-    raiSync = raiGetSyncInclude(config);
-
-    if (gdprConsent && typeof gdprConsent.consentString === 'string' && typeof gdprConsent.consentString != 'undefined') {
-      consent = `consentString=${gdprConsent.consentString}`
+    if (gdprConsent && typeof gdprConsent.consentString === 'string' && typeof gdprConsent.consentString !== 'undefined') {
+      consent = `consentString=${gdprConsent.consentString}`;
     }
 
     // GPP Consent
@@ -180,13 +172,13 @@ export const spec = {
       consentGPP += '&gpp_sid=' + encodeURIComponent(gppConsent?.applicableSections?.join(','));
     }
 
-    if (syncOptions.iframeEnabled && raiSync.raiIframe != 'exclude') {
-      syncUrl = 'https://sync.richaudience.com/dcf3528a0b8aa83634892d50e91c306e/?ord=' + rand
-      if (consent != '') {
-        syncUrl += `&${consent}`
+    if (syncOptions.iframeEnabled && raiSync.raiIframe !== 'exclude') {
+      let syncUrl = 'https://sync.richaudience.com/dcf3528a0b8aa83634892d50e91c306e/?ord=' + rand;
+      if (consent !== '') {
+        syncUrl += `&${consent}`;
       }
-      if (consentGPP != '') {
-        syncUrl += `&${consentGPP}`
+      if (consentGPP !== '') {
+        syncUrl += `&${consentGPP}`;
       }
       syncs.push({
         type: 'iframe',
@@ -194,24 +186,24 @@ export const spec = {
       });
     }
 
-    if (syncOptions.pixelEnabled && REFERER != null && syncs.length == 0 && raiSync.raiImage != 'exclude') {
-      syncUrl = `https://sync.richaudience.com/bf7c142f4339da0278e83698a02b0854/?referrer=${REFERER}`;
-      if (consent != '') {
-        syncUrl += `&${consent}`
+    if (syncOptions.pixelEnabled && REFERER != null && syncs.length === 0 && raiSync.raiImage !== 'exclude') {
+      let syncUrl = `https://sync.richaudience.com/bf7c142f4339da0278e83698a02b0854/?referrer=${REFERER}`;
+      if (consent !== '') {
+        syncUrl += `&${consent}`;
       }
-      if (consentGPP != '') {
-        syncUrl += `&${consentGPP}`
+      if (consentGPP !== '') {
+        syncUrl += `&${consentGPP}`;
       }
       syncs.push({
         type: 'image',
         url: syncUrl
       });
     }
-    return syncs
+    return syncs;
   },
 
   onTimeout: function (data) {
-    let url = raiGetTimeoutURL(data);
+    const url = raiGetTimeoutURL(data);
     if (url) {
       triggerPixel(url);
     }
@@ -223,7 +215,7 @@ registerBidder(spec);
 function raiGetSizes(bid) {
   let raiNewSizes;
   if (bid.mediaTypes && bid.mediaTypes.banner && bid.mediaTypes.banner.sizes) {
-    raiNewSizes = bid.mediaTypes.banner.sizes
+    raiNewSizes = bid.mediaTypes.banner.sizes;
   }
   if (raiNewSizes != null) {
     return raiNewSizes.map(size => ({
@@ -233,26 +225,9 @@ function raiGetSizes(bid) {
   }
 }
 
-function raiGetDemandType(bid) {
-  let raiFormat = 'display';
-  if (typeof bid.sizes != 'undefined') {
-    bid.sizes.forEach(function (sz) {
-      if ((sz[0] == '1800' && sz[1] == '1000') || (sz[0] == '1' && sz[1] == '1')) {
-        raiFormat = 'skin'
-      }
-    })
-  }
-  if (bid.mediaTypes != undefined) {
-    if (bid.mediaTypes.video != undefined) {
-      raiFormat = 'video';
-    }
-  }
-  return raiFormat;
-}
-
 function raiGetVideoInfo(bid) {
   let videoData;
-  if (raiGetDemandType(bid) == 'video') {
+  if (bid.mediaTypes?.video) {
     videoData = {
       format: bid.mediaTypes.video.context,
       playerSize: bid.mediaTypes.video.playerSize,
@@ -261,20 +236,20 @@ function raiGetVideoInfo(bid) {
   } else {
     videoData = {
       format: 'banner'
-    }
+    };
   }
   return videoData;
 }
 
 function renderer(bid) {
   bid.renderer.push(() => {
-    renderAd(bid)
+    renderAd(bid);
   });
 }
 
 function renderAd(bid) {
-  let raOutstreamHBPassback = `${bid.vastXml}`;
-  let raPlayerHB = {
+  const raOutstreamHBPassback = `${bid.vastXml}`;
+  const raPlayerHB = {
     adUnit: bid.adUnitCode
   };
 
@@ -283,7 +258,7 @@ function renderAd(bid) {
 
 function raiGetResolution() {
   let resolution = '';
-  if (typeof window.screen != 'undefined') {
+  if (typeof window.screen !== 'undefined') {
     resolution = window.screen.width + 'x' + window.screen.height;
   }
   return resolution;
@@ -291,23 +266,25 @@ function raiGetResolution() {
 
 function raiSetPbAdSlot(bid) {
   let pbAdSlot = '';
-  if (deepAccess(bid, 'ortb2Imp.ext.data.pbadslot') != null) {
-    pbAdSlot = deepAccess(bid, 'ortb2Imp.ext.data.pbadslot')
+  if (deepAccess(bid, 'ortb2Imp.ext.gpid') != null) {
+    pbAdSlot = deepAccess(bid, 'ortb2Imp.ext.gpid');
+  } else if (deepAccess(bid, 'ortb2Imp.ext.data.pbadslot') != null) {
+    pbAdSlot = deepAccess(bid, 'ortb2Imp.ext.data.pbadslot');
   }
-  return pbAdSlot
+  return pbAdSlot;
 }
 
 function raiGetSyncInclude(config) {
   try {
     let raConfig = null;
-    let raiSync = {};
-    if (config.getConfig('userSync').filterSettings != null && typeof config.getConfig('userSync').filterSettings != 'undefined') {
-      raConfig = config.getConfig('userSync').filterSettings
-      if (raConfig.iframe != null && typeof raConfig.iframe != 'undefined') {
-        raiSync.raiIframe = raConfig.iframe.bidders == 'richaudience' || raConfig.iframe.bidders == '*' ? raConfig.iframe.filter : 'exclude';
+    const raiSync = {};
+    if (config.getConfig('userSync').filterSettings != null && typeof config.getConfig('userSync').filterSettings !== 'undefined') {
+      raConfig = config.getConfig('userSync').filterSettings;
+      if (raConfig.iframe != null && typeof raConfig.iframe !== 'undefined') {
+        raiSync.raiIframe = raConfig.iframe.bidders === 'richaudience' || raConfig.iframe.bidders === '*' ? raConfig.iframe.filter : 'exclude';
       }
-      if (raConfig.image != null && typeof raConfig.image != 'undefined') {
-        raiSync.raiImage = raConfig.image.bidders == 'richaudience' || raConfig.image.bidders == '*' ? raConfig.image.filter : 'exclude';
+      if (raConfig.image != null && typeof raConfig.image !== 'undefined') {
+        raiSync.raiImage = raConfig.image.bidders === 'richaudience' || raConfig.image.bidders === '*' ? raConfig.image.filter : 'exclude';
       }
     }
     return raiSync;
@@ -321,34 +298,34 @@ function raiGetFloor(bid, config) {
     let raiFloor;
     if (bid.params.bidfloor != null) {
       raiFloor = bid.params.bidfloor;
-    } else if (typeof bid.getFloor == 'function') {
-      let floorSpec = bid.getFloor({
+    } else if (typeof bid.getFloor === 'function') {
+      const floorSpec = bid.getFloor({
         currency: config.getConfig('floors.data.currency') != null ? config.getConfig('floors.data.currency') : 'USD',
-        mediaType: typeof bid.mediaTypes['banner'] == 'object' ? 'banner' : 'video',
+        mediaType: typeof bid.mediaTypes['banner'] === 'object' ? 'banner' : 'video',
         size: '*'
-      })
+      });
 
       raiFloor = floorSpec.floor;
     }
-    return raiFloor
+    return raiFloor;
   } catch (e) {
-    return 0
+    return 0;
   }
 }
 
 function raiGetTimeoutURL(data) {
-  let {params, timeout} = data[0]
+  const { params, timeout } = data[0];
   let url = 'https://s.richaudience.com/err/?ec=6&ev=[timeout_publisher]&pla=[placement_hash]&int=PREBID&pltfm=&node=&dm=[domain]';
 
-  url = url.replace('[timeout_publisher]', timeout)
-  url = url.replace('[placement_hash]', params[0].pid)
+  url = url.replace('[timeout_publisher]', timeout);
+  url = url.replace('[placement_hash]', params[0].pid);
   if (document.location.host != null) {
-    url = url.replace('[domain]', document.location.host)
+    url = url.replace('[domain]', document.location.host);
   }
-  return url
+  return url;
 }
 
 function setDSA(bid) {
-  let dsa = bid?.ortb2?.regs?.ext?.dsa ? bid?.ortb2?.regs?.ext?.dsa : null;
+  const dsa = bid?.ortb2?.regs?.ext?.dsa ? bid?.ortb2?.regs?.ext?.dsa : null;
   return dsa;
 }
