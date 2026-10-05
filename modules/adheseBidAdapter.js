@@ -1,8 +1,9 @@
 'use strict';
 
 import { registerBidder } from '../src/adapters/bidderFactory.js';
-import { BANNER, VIDEO } from '../src/mediaTypes.js';
+import { BANNER, VIDEO, NATIVE } from '../src/mediaTypes.js';
 import { config } from '../src/config.js';
+import { logError } from '../src/utils.js';
 
 const BIDDER_CODE = 'adhese';
 const GVLID = 553;
@@ -11,10 +12,10 @@ const USER_SYNC_BASE_URL = 'https://user-sync.adhese.com/iframe/user_sync.html';
 export const spec = {
   code: BIDDER_CODE,
   gvlid: GVLID,
-  supportedMediaTypes: [BANNER, VIDEO],
+  supportedMediaTypes: [BANNER, VIDEO, NATIVE],
 
   isBidRequestValid: function(bid) {
-    return !!(bid.params.account && bid.params.location && (bid.params.format || bid.mediaTypes.banner.sizes));
+    return !!(bid.params.account && bid.params.location && (bid.params.format || bid.mediaTypes.banner?.sizes || bid.mediaTypes.native || bid.mediaTypes.video));
   },
 
   buildRequests: function(validBidRequests, bidderRequest) {
@@ -49,7 +50,7 @@ export const spec = {
     };
 
     const account = getAccount(validBidRequests);
-    const uri = 'https://ads-' + account + '.adhese.com/json';
+    const uri = buildUri(adheseConfig, account);
 
     return {
       method: 'POST',
@@ -125,6 +126,8 @@ function adResponse(bid, ad) {
     } else {
       bidResponse.vastXml = markup;
     }
+  } else if (bidResponse.mediaType === NATIVE) {
+    bidResponse.native = parseNativeResponse(markup);
   } else {
     const counter = ad.impressionCounter ? "<img src='" + ad.impressionCounter + "' style='height:1px; width:1px; margin: -1px -1px; display:none;'/>" : '';
     bidResponse.ad = markup + counter;
@@ -157,19 +160,49 @@ function bidToSlotName(bid) {
     return bid.params.location + '-' + bid.params.format;
   }
 
-  var sizes = bid.mediaTypes.banner.sizes;
-  sizes.sort();
-  var format = sizes.map(size => size[0] + 'x' + size[1]).join('_');
+  // Only try to use banner sizes if banner mediaType exists
+  if (bid.mediaTypes.banner && bid.mediaTypes.banner.sizes) {
+    var sizes = bid.mediaTypes.banner.sizes;
+    sizes.sort();
+    var format = sizes.map(size => size[0] + 'x' + size[1]).join('_');
 
-  if (format.length > 0) {
-    return bid.params.location + '-' + format;
-  } else {
-    return bid.params.location;
+    if (format.length > 0) {
+      return bid.params.location + '-' + format;
+    }
   }
+
+  return bid.params.location;
 }
 
 function getAccount(validBidRequests) {
   return validBidRequests[0].params.account;
+}
+
+function buildUri(adheseConfig, account) {
+  // Check if custom URL is configured
+  if (adheseConfig && adheseConfig.customEndpoint) {
+    let customUrl = adheseConfig.customEndpoint;
+
+    // Sanity check: ensure https:// is present
+    if (!customUrl.startsWith('https://')) {
+      if (customUrl.startsWith('http://')) {
+        // Convert http to https for security
+        customUrl = customUrl.replace('http://', 'https://');
+      } else {
+        // Add https:// if missing
+        customUrl = 'https://' + customUrl;
+      }
+    }
+
+    // Remove trailing slashes to avoid double slashes
+    customUrl = customUrl.replace(/\/+$/, '');
+
+    // Append /json
+    return customUrl + '/json';
+  }
+
+  // Fall back to default URL construction
+  return 'https://ads-' + account + '.adhese.com/json';
 }
 
 function getEids(validBidRequests) {
@@ -233,6 +266,103 @@ function getAdDetails(ad) {
     if (ad.origin) origin = ad.origin;
   }
   return { creativeId: creativeId, dealId: dealId, originData: originData, origin: origin, originInstance: originInstance };
+}
+
+function parseNativeResponse(body) {
+  let nativeResponse = {};
+
+  try {
+    const nativeData = JSON.parse(body);
+    const native = nativeData.native;
+
+    if (!native) {
+      return nativeResponse;
+    }
+
+    // Parse click url
+    if (native.link && native.link.url) {
+      nativeResponse.clickUrl = native.link.url;
+    }
+
+    // Parse impression trackers
+    if (native.imptrackers && native.imptrackers.length > 0) {
+      nativeResponse.impressionTrackers = native.imptrackers;
+    }
+
+    // Parse event trackers
+    if (native.eventtrackers && native.eventtrackers.length > 0) {
+      // Handle impression trackers (event type 1)
+      const impressionTrackers = native.eventtrackers
+        .filter(tracker => tracker.event === 1)
+        .map(tracker => tracker.url);
+
+      if (impressionTrackers.length > 0) {
+        nativeResponse.impressionTrackers = (nativeResponse.impressionTrackers || []).concat(impressionTrackers);
+      }
+
+      // Handle JS trackers (method type 2)
+      const jsTrackers = native.eventtrackers
+        .filter(tracker => tracker.method === 2)
+        .map(tracker => tracker.url);
+
+      if (jsTrackers.length > 0) {
+        nativeResponse.jstracker = jsTrackers.join('');
+      }
+    }
+
+    // Parse assets
+    if (native.assets && native.assets.length > 0) {
+      native.assets.forEach(asset => {
+        // Title asset
+        if (asset.title) {
+          nativeResponse.title = asset.title.text;
+        }
+
+        // Image asset
+        if (asset.img) {
+          if (asset.id === 1 || !nativeResponse.image) {
+            nativeResponse.image = {
+              url: asset.img.url,
+              width: asset.img.w,
+              height: asset.img.h
+            };
+          }
+          // Icon image
+          if (asset.id === 2) {
+            nativeResponse.icon = {
+              url: asset.img.url,
+              width: asset.img.w,
+              height: asset.img.h
+            };
+          }
+        }
+
+        // Data asset
+        if (asset.data) {
+          switch (asset.id) {
+            case 1: // Sponsored by data
+              nativeResponse.sponsoredBy = asset.data.value;
+              break;
+            case 2: // Description/body
+              nativeResponse.body = asset.data.value;
+              break;
+            case 3: // CTA text
+              nativeResponse.cta = asset.data.value;
+              break;
+            default:
+              // Generic data asset
+              if (!nativeResponse.body && asset.data.value) {
+                nativeResponse.body = asset.data.value;
+              }
+          }
+        }
+      });
+    }
+  } catch (e) {
+    logError('Error parsing native response:', e);
+  }
+
+  return nativeResponse;
 }
 
 function base64urlEncode(s) {
